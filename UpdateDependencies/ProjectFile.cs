@@ -10,6 +10,7 @@ public class ProjectFile
     XmlWriterSettings saveProjectSettings;
     
     XDocument xdoc;
+    Encoding encoding;
     XElement primaryItemGroup;
     XElement transitiveItemGroup;
     XElement[] allPkgRefs;
@@ -23,10 +24,11 @@ public class ProjectFile
 		
         packageElementName = isCentralPackageManagement ? "PackageVersion" : "PackageReference";
 
+        encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
         saveProjectSettings = new XmlWriterSettings
         {
             OmitXmlDeclaration = true,
-            // Encoding is set on file read
+            Encoding = encoding
         };
         
         xdoc = LoadXDocument(path);
@@ -69,10 +71,13 @@ public class ProjectFile
 
     XDocument LoadXDocument(string path)
     {
-        using var reader = new StreamReader(path, Encoding.UTF8);
+        using var reader = new StreamReader(path, Encoding.Default);
         using var xreader = XmlReader.Create(reader, preserveWhiteSpaceReaderSettings);
+        var doc = XDocument.Load(xreader);
+        
         saveProjectSettings.Encoding = reader.CurrentEncoding;
-        return XDocument.Load(xreader, LoadOptions.None);
+
+        return doc;
     }
     
     void SortPackageRefs(XElement itemGroup)
@@ -125,6 +130,6 @@ public class ProjectFile
         CloseInput = true,
         IgnoreComments = false,
         IgnoreProcessingInstructions = false,
-        IgnoreWhitespace = false
+        IgnoreWhitespace = false,
     };
 }
