@@ -6,9 +6,9 @@ using System.Xml.XPath;
 public class ProjectFile
 {
     string path;
-    //bool isCentralPackageManagement;
     string packageElementName;
-	
+    XmlWriterSettings saveProjectSettings;
+    
     XDocument xdoc;
     XElement primaryItemGroup;
     XElement transitiveItemGroup;
@@ -22,7 +22,13 @@ public class ProjectFile
         var isCentralPackageManagement = Path.GetFileName(path).Equals("Directory.Packages.props", StringComparison.OrdinalIgnoreCase);
 		
         packageElementName = isCentralPackageManagement ? "PackageVersion" : "PackageReference";
-		
+
+        saveProjectSettings = new XmlWriterSettings
+        {
+            OmitXmlDeclaration = true,
+            // Encoding is set on file read
+        };
+        
         xdoc = LoadXDocument(path);
 		
         allPkgRefs = xdoc.XPathSelectElements($"/Project/ItemGroup/{packageElementName}").ToArray();
@@ -61,10 +67,12 @@ public class ProjectFile
         SortPackageRefs(transitiveItemGroup);
     }
 
-    static XDocument LoadXDocument(string path)
+    XDocument LoadXDocument(string path)
     {
-        using var reader = XmlReader.Create(path, preserveWhiteSpaceReaderSettings);
-        return XDocument.Load(reader, LoadOptions.None);
+        using var reader = new StreamReader(path, Encoding.UTF8);
+        using var xreader = XmlReader.Create(reader, preserveWhiteSpaceReaderSettings);
+        saveProjectSettings.Encoding = reader.CurrentEncoding;
+        return XDocument.Load(xreader, LoadOptions.None);
     }
     
     void SortPackageRefs(XElement itemGroup)
@@ -118,11 +126,5 @@ public class ProjectFile
         IgnoreComments = false,
         IgnoreProcessingInstructions = false,
         IgnoreWhitespace = false
-    };
-
-    static readonly XmlWriterSettings saveProjectSettings = new XmlWriterSettings
-    {
-        OmitXmlDeclaration = true,
-        Encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)
     };
 }

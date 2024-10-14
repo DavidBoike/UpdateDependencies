@@ -13,7 +13,7 @@ public class AppRunner(string workingDirectory)
 
     	try
     	{
-    		var args = $"src --output-format Json --output {tmpPath} --transitive --transitive-depth {transitiveDepth} --version-lock Minor";
+    		var args = $"src --output-format Json --output {tmpPath} --transitive --transitive-depth {transitiveDepth} --version-lock Minor --ignore-failed-sources";
     		Run("dotnet-outdated", args);
 
     		var json = File.ReadAllText(tmpPath);
