@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 public class AppRunner(string workingDirectory)
 {
@@ -28,20 +29,23 @@ public class AppRunner(string workingDirectory)
     	}
     }
     
-    public bool TryBuild(bool streamOutput = false)
+    public bool TryBuild(out string[] stdoutLines)
     {
+        stdoutLines = [];
+        
 	    // Must force re-restore or weird things happen
-	    var res = Run("dotnet", "restore src", streamOutput);
+	    var res = Run("dotnet", "restore src");
 	    if (res.ExitCode != 0)
 	    {
 		    Console.WriteLine("dotnet restore failed");
+            stdoutLines = LineSeparatorRegex.Split(res.Stdout);
 		    return false;
 	    }
 	
 	    Thread.Sleep(1000);
 	
 	    // Can't use --no-restore or NuGet vulnerability warnings won't break build
-	    res = Run("dotnet", "build src -graph --configuration Release", streamOutput);
+	    res = Run("dotnet", "build src -graph --configuration Release");
 	    if (res.ExitCode == 0)
 	    {
 		    Console.WriteLine("Build successful");
@@ -49,8 +53,11 @@ public class AppRunner(string workingDirectory)
 	    }
 	
 	    Console.WriteLine("Build currently unsuccessful");
+        stdoutLines = LineSeparatorRegex.Split(res.Stdout);
 	    return false;
     }
+
+    static readonly Regex LineSeparatorRegex = new Regex(@"\r?\n", RegexOptions.Compiled);
 
     Result Run(string cmd, string args, bool streamStdout = false)
     {

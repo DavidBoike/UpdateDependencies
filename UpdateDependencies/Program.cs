@@ -1,3 +1,2 @@
-﻿//var updater = new Updater(@"/Users/david/Projects/tools.particular.net");
-var updater = new Updater(@"/Users/david/Projects/Particular.EndpointThroughputCounter");
+﻿var updater = new Updater(@"/Users/david/Projects/ServiceControl");
 updater.Update();

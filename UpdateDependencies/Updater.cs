@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
 public class Updater
@@ -11,43 +12,33 @@ public class Updater
         var cpmPath = Path.Combine(workingDirectory, "src", "Directory.Packages.props");
         if (File.Exists(cpmPath))
         {
-            this.centralPkgMgmtPath = cpmPath;
+            centralPkgMgmtPath = cpmPath;
         }
     }
 	
-    public bool Update(bool tryRemoveTransitiveRefs = true)
+    public bool Update()
     {
-        var updateResult = UpdateInternal(true);
-        if (!tryRemoveTransitiveRefs)
+        var report = apps.RunOutdated(20);
+        
+        int changesMade = 1;
+        string[] buildLogs = null;
+        
+        while (changesMade > 0)
         {
-            return updateResult;
-        }
-		
-        Console.WriteLine("Attempting to remove unnecessary transitive dependencies");
-        var report = apps.RunOutdated(0);
-		
-        return updateResult;
-    }
-	
-    public bool UpdateInternal(bool streamOutput)
-    {
-        for (var transDepth = 0; transDepth <= 10; transDepth++)
-        {
-            if (apps.TryBuild(streamOutput))
+            if (apps.TryBuild(out buildLogs))
             {
                 return true;
             }
 			
-            var report = apps.RunOutdated(transDepth);
-            var changesMade = UpdateFor(report, transDepth);
+            changesMade = UpdateFor(report, buildLogs);
 			
             if (changesMade == 0)
             {
-                Console.WriteLine("No changes could be made at this transitive depth");
+                break;
             }
         }
 		
-        if (apps.TryBuild(streamOutput))
+        if (apps.TryBuild(out buildLogs))
         {
             return true;
         }
@@ -56,7 +47,7 @@ public class Updater
         return false;
     }
 
-    int UpdateFor(OutdatedReport report, int depth)
+    int UpdateFor(OutdatedReport report, string[] buildLogs)
     {
         if (centralPkgMgmtPath is not null)
         {
@@ -70,22 +61,22 @@ public class Updater
 				
             var cpmProject = new OutdatedProject("Directory.Packages.props", centralPkgMgmtPath, [anyFramework], true);
 			
-            return UpdateProject(cpmProject, depth);
+            return UpdateProject(cpmProject, buildLogs);
         }
         else
         {
             var changesMade = 0;
             foreach (var project in report.Projects)
             {
-                changesMade += UpdateProject(project, depth);
+                changesMade += UpdateProject(project, buildLogs);
             }
             return changesMade;
         }
     }
 
-    int UpdateProject(OutdatedProject project, int depth)
+    int UpdateProject(OutdatedProject project, string[] buildLogs)
     {
-        Console.WriteLine($"Updating project {project.Name} for transitive depth {depth}");
+        Console.WriteLine($"Updating project {project.Name}");
 
         var file = new ProjectFile(project.FilePath);
 		
@@ -95,16 +86,37 @@ public class Updater
         {
             foreach (var dep in fw.Dependencies.Where(d => ShouldUpdateDependency(d.Name)))
             {
-                if (file.TryUpdate(dep.Name, dep.LatestVersion))
+                bool shouldUpdate = buildLogs.Any(line =>
                 {
-                    Console.WriteLine($"  - Updated {dep.Name} to {dep.LatestVersion}");
-                    changesMade++;
-                }
-                else
+                    if (project.IsCentralPackageMgmt || line.Contains(Path.GetFileName(project.FilePath), OIC))
+                    {
+                        if (line.Contains(dep.Name, OIC))
+                        {
+                            var pattern = $@"[' ]{dep.Name}[' ]";
+                            if (Regex.IsMatch(line, pattern, RegexOptions.IgnoreCase))
+                            {
+                                return true;
+                            }
+                        }
+                    }
+
+                    return false;
+                });
+
+                if (shouldUpdate)
                 {
-                    file.AddTransitiveReference(dep.Name, dep.LatestVersion);
-                    Console.WriteLine($"  - Added {dep.Name} {dep.LatestVersion} as a pinned transitive dependency");
-                    changesMade++;
+                    if (file.TryUpdate(dep.Name, dep.LatestVersion))
+                    {
+                        Console.WriteLine($"  - Updated {dep.Name} to {dep.LatestVersion} in {project.Name}");
+                        changesMade++;
+                    }
+                    else
+                    {
+                        file.AddTransitiveReference(dep.Name, dep.LatestVersion);
+                        Console.WriteLine(
+                            $"  - Added {dep.Name} {dep.LatestVersion} as a pinned transitive dependency in {project.Name}");
+                        changesMade++;
+                    }
                 }
             }
         }
