@@ -9,11 +9,11 @@ public class ProjectFile
     //bool isCentralPackageManagement;
     string packageElementName;
 	
-    public XDocument XDoc;
-    public XElement PrimaryItemGroup;
-    public XElement TransitiveItemGroup;
-    public XElement[] AllPackageReferences;
-    public Dictionary<string, XElement> PackagesByName;
+    XDocument xdoc;
+    XElement primaryItemGroup;
+    XElement transitiveItemGroup;
+    XElement[] allPkgRefs;
+    Dictionary<string, XElement> packagesByName;
 	
 	
     public ProjectFile(string path)
@@ -23,30 +23,42 @@ public class ProjectFile
 		
         packageElementName = isCentralPackageManagement ? "PackageVersion" : "PackageReference";
 		
-        XDoc = LoadXDocument(path);
+        xdoc = LoadXDocument(path);
 		
-        AllPackageReferences = XDoc.XPathSelectElements($"/Project/ItemGroup/{packageElementName}").ToArray();
-        PackagesByName = AllPackageReferences.ToDictionary(e => e.Attribute("Include").Value, StringComparer.OrdinalIgnoreCase);
+        allPkgRefs = xdoc.XPathSelectElements($"/Project/ItemGroup/{packageElementName}").ToArray();
+        packagesByName = allPkgRefs.ToDictionary(e => e.Attribute("Include").Value, StringComparer.OrdinalIgnoreCase);
 
-        var itemGroups = AllPackageReferences.Select(e => e.Parent)
+        var itemGroups = allPkgRefs.Select(e => e.Parent)
             .Distinct()
             .ToArray();
 		
-        TransitiveItemGroup = itemGroups.FirstOrDefault(IsTransitiveDependencyItemGroup);
-        PrimaryItemGroup = itemGroups.FirstOrDefault(e => !IsTransitiveDependencyItemGroup(e));
+        transitiveItemGroup = itemGroups.FirstOrDefault(IsTransitiveDependencyItemGroup);
+        primaryItemGroup = itemGroups.FirstOrDefault(e => !IsTransitiveDependencyItemGroup(e));
+    }
+
+    public bool TryUpdate(string package, string version)
+    {
+        if (packagesByName.TryGetValue(package, out var pkgRef))
+        {
+            pkgRef.SetAttributeValue("Version", version);
+            return true;
+        }
+
+        return false;
     }
 	
     public void AddTransitiveReference(string package, string version)
     {
-        if (TransitiveItemGroup is null)
+        if (transitiveItemGroup is null)
         {
-            TransitiveItemGroup = new XElement("ItemGroup", new XAttribute("Label", "Pinned transitive dependencies"));
+            transitiveItemGroup = new XElement("ItemGroup", new XAttribute("Label", "Pinned transitive dependencies"));
 
-            PrimaryItemGroup.AddAfterSelf(
+            primaryItemGroup.AddAfterSelf(
                 new XText($"{Environment.NewLine}{Environment.NewLine}  "),
-                TransitiveItemGroup);
+                transitiveItemGroup);
         }
-        TransitiveItemGroup.Add(new XElement(packageElementName, new XAttribute("Include", package), new XAttribute("Version", version)));
+        transitiveItemGroup.Add(new XElement(packageElementName, new XAttribute("Include", package), new XAttribute("Version", version)));
+        SortPackageRefs(transitiveItemGroup);
     }
 
     static XDocument LoadXDocument(string path)
@@ -54,11 +66,34 @@ public class ProjectFile
         using var reader = XmlReader.Create(path, preserveWhiteSpaceReaderSettings);
         return XDocument.Load(reader, LoadOptions.None);
     }
+    
+    void SortPackageRefs(XElement itemGroup)
+    {
+        var orderedItems = itemGroup.DescendantNodes()
+            .OfType<XElement>()
+            .OrderBy(e => e.Attribute("Include").Value);
+			
+        List<XNode> newContent = new();
+		
+        foreach(var item in orderedItems)
+        {
+            newContent.Add(new XText($"{Environment.NewLine}    "));
+            newContent.Add(item);
+        }
+        newContent.Add(new XText($"{Environment.NewLine}  "));
+
+        itemGroup.ReplaceNodes(newContent.ToArray());
+    }
 	
     public void Save()
     {
+        SortPackageRefs(primaryItemGroup);
+        if (transitiveItemGroup is not null)
+        {
+            SortPackageRefs(transitiveItemGroup);
+        }
         using var writer = XmlWriter.Create(path, saveProjectSettings);
-        XDoc.Save(writer);
+        xdoc.Save(writer);
     }
     
     static bool IsTransitiveDependencyItemGroup(XElement itemGroup)

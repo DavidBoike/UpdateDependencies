@@ -95,16 +95,14 @@ public class Updater
         {
             foreach (var dep in fw.Dependencies.Where(d => ShouldUpdateDependency(d.Name)))
             {
-                if (elements.PackagesByName.TryGetValue(dep.Name, out var projRef))
+                if (elements.TryUpdate(dep.Name, dep.LatestVersion))
                 {
-                    projRef.SetAttributeValue("Version", dep.LatestVersion);
                     Console.WriteLine($"  - Updated {dep.Name} to {dep.LatestVersion}");
                     changesMade++;
                 }
                 else
                 {
                     elements.AddTransitiveReference(dep.Name, dep.LatestVersion);
-                    SortPackageRefs(elements.TransitiveItemGroup);
                     Console.WriteLine($"  - Added {dep.Name} {dep.LatestVersion} as a pinned transitive dependency");
                     changesMade++;
                 }
@@ -113,36 +111,11 @@ public class Updater
 		
         if (changesMade > 0)
         {
-            SortPackageRefs(elements.PrimaryItemGroup);
-            if (elements.TransitiveItemGroup is not null)
-            {
-                SortPackageRefs(elements.TransitiveItemGroup);
-            }
             elements.Save();
         }
 		
         return changesMade;
     }
-	
-    void SortPackageRefs(XElement itemGroup)
-    {
-        var orderedItems = itemGroup.DescendantNodes()
-            .OfType<XElement>()
-            .OrderBy(e => e.Attribute("Include").Value);
-			
-        List<XNode> newContent = new();
-		
-        foreach(var item in orderedItems)
-        {
-            newContent.Add(new XText($"{Environment.NewLine}    "));
-            newContent.Add(item);
-        }
-        newContent.Add(new XText($"{Environment.NewLine}  "));
-
-        itemGroup.ReplaceNodes(newContent.ToArray());
-    }
-	
-
 	
     const StringComparison OIC = StringComparison.OrdinalIgnoreCase;
 	
