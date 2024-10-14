@@ -82,7 +82,7 @@ public class ProjectFile
     
     void SortPackageRefs(XElement itemGroup)
     {
-        var orderedItems = itemGroup.DescendantNodes()
+        var orderedItems = itemGroup.Nodes()
             .OfType<XElement>()
             .OrderBy(e => e.Attribute("Include").Value);
 			
