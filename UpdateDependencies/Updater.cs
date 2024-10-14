@@ -87,7 +87,7 @@ public class Updater
     {
         Console.WriteLine($"Updating project {project.Name} for transitive depth {depth}");
 
-        var elements = new ProjectFile(project.FilePath);
+        var file = new ProjectFile(project.FilePath);
 		
         int changesMade = 0;
 		
@@ -95,14 +95,14 @@ public class Updater
         {
             foreach (var dep in fw.Dependencies.Where(d => ShouldUpdateDependency(d.Name)))
             {
-                if (elements.TryUpdate(dep.Name, dep.LatestVersion))
+                if (file.TryUpdate(dep.Name, dep.LatestVersion))
                 {
                     Console.WriteLine($"  - Updated {dep.Name} to {dep.LatestVersion}");
                     changesMade++;
                 }
                 else
                 {
-                    elements.AddTransitiveReference(dep.Name, dep.LatestVersion);
+                    file.AddTransitiveReference(dep.Name, dep.LatestVersion);
                     Console.WriteLine($"  - Added {dep.Name} {dep.LatestVersion} as a pinned transitive dependency");
                     changesMade++;
                 }
@@ -111,7 +111,7 @@ public class Updater
 		
         if (changesMade > 0)
         {
-            elements.Save();
+            file.Save();
         }
 		
         return changesMade;
