@@ -6,6 +6,8 @@ using System.Xml.XPath;
 public class ProjectFile
 {
     string path;
+    //bool isCentralPackageManagement;
+    string packageElementName;
 	
     public XDocument XDoc;
     public XElement PrimaryItemGroup;
@@ -13,14 +15,13 @@ public class ProjectFile
     public XElement[] AllPackageReferences;
     public Dictionary<string, XElement> PackagesByName;
 	
-    string packageElementName;
 	
     public ProjectFile(string path)
     {
         this.path = path;
-        var isCentralPkgMgmt = Path.GetFileName(path).Equals("Directory.Packages.props", StringComparison.OrdinalIgnoreCase);
+        var isCentralPackageManagement = Path.GetFileName(path).Equals("Directory.Packages.props", StringComparison.OrdinalIgnoreCase);
 		
-        packageElementName = isCentralPkgMgmt ? "PackageVersion" : "PackageReference";
+        packageElementName = isCentralPackageManagement ? "PackageVersion" : "PackageReference";
 		
         XDoc = LoadXDocument(path);
 		

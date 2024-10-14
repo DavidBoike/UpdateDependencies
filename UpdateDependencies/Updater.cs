@@ -68,7 +68,7 @@ public class Updater
 			
             var anyFramework = new OutdatedTfm("any", allDeps);
 				
-            var cpmProject = new OutdatedProject("Directory.Packages.props", centralPkgMgmtPath, [anyFramework]);
+            var cpmProject = new OutdatedProject("Directory.Packages.props", centralPkgMgmtPath, [anyFramework], true);
 			
             return UpdateProject(cpmProject, depth);
         }
